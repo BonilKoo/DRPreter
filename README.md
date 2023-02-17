@@ -29,5 +29,5 @@ python3 main.py --mode train
 
 ## 4. Interpret model with trained model
 ```sh
-python3 main.py --mode test --seed 0
+python3 main.py --mode test
 ```
