@@ -3,6 +3,12 @@ DRPreter: Interpretable Anticancer Drug Response Prediction Using Knowledge-Guid
 
 ![DRPreter](https://user-images.githubusercontent.com/68269057/198502117-785291dd-af73-40d3-8fed-0e8881404119.png)
 
+## 0. Create conda environment
+```sh
+conda env create -f environment.yaml
+```
+
+
 ## 1. Create cell-line data
 ```sh
 python3 cellline_graph.py
