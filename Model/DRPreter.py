@@ -131,7 +131,7 @@ class DRPreter(nn.Module):
             x_cell = x[:, :-1, :].sum(dim=1)                   # x[:, :-1, :].shape: torch.Size([128, 34, 256]) ==> x_cell.shape: torch.Size([128, 256])
             x_drug_res = x[:, -1:, :]                          # x_drug.shape: torch.Size([128, 256])
             # print(x_drug.shape, x_drug_res.shape)
-            x_drug += x_drug_res
+            x_drug = x_drug + x_drug_res
             x_drug = x_drug.view(x_drug.size(0), -1)
             x = torch.cat([x_drug, x_cell], -1)
             # x = x.view(x.size(0), -1)
