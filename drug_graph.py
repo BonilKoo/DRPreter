@@ -5,6 +5,7 @@ import torch
 import torch_geometric
 from torch_geometric.data import Data
 from dgllife.utils import *
+import pickle
 
 
 def atom_to_feature_vector(atom):
@@ -103,7 +104,8 @@ def save_drug_graph():
     drug_dict = {}
     for i in range(len(smiles)):
         drug_dict[smiles.iloc[i, 0]] = smiles2graph(smiles.iloc[i, 2])
-    np.save('Data/Drug/drug_feature_graph.npy', drug_dict)
+    with open('Data/Drug/drug_feature_graph.npy', 'wb') as file:
+        pickle.dump(drug_dict, file)
     return drug_dict
 
 

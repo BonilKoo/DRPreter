@@ -24,7 +24,7 @@ def ensp_to_hugo_map():
 
 
 def save_cell_graph(gene_path, save_path, type):
-    if os.path.exists(os.path.join(save_path, 'cell_feature_std_{}.npy'.format(type))):
+    if os.path.exists(os.path.join(save_path, f'cell_feature_std_{type}.pkl')):
         print('already exists!')
     else:
         # os.makedirs(save_path)
@@ -35,9 +35,13 @@ def save_cell_graph(gene_path, save_path, type):
         scaler = StandardScaler()
         exp = scaler.fit_transform(exp)
         # cn = scaler.fit_transform(cn)
+        with open(os.path.join(gene_path, 'scaler.pkl'), 'wb') as file:
+            pickle.dump(scaler, file)
 
         imp_mean = SimpleImputer()
         exp = imp_mean.fit_transform(exp)
+        with open(os.path.join(gene_path, 'imp_mean.pkl'), 'wb') as file:
+            pickle.dump(imp_mean, file)
 
         exp = pd.DataFrame(exp, index=index, columns=columns)
         # cn = pd.DataFrame(cn, index=index, columns=columns)
@@ -80,17 +84,18 @@ def save_cell_graph(gene_path, save_path, type):
                 x = pd.concat(x)
                 cell_dict[i] = Data(x=torch.tensor([x], dtype=torch.float).T, x_mask=torch.tensor(x_mask, dtype=torch.int))
 
-        print(cell_dict)
-        np.save(os.path.join(save_path, 'cell_feature_std_{}.npy').format(type), cell_dict)
+        # print(cell_dict)
+        with open(os.path.join(save_path, f'cell_feature_std_{type}.pkl'), 'wb') as file:
+                  pickle.dump(cell_dict, file)
         print("finish saving cell data!")
         return gene_list
 
 
 def get_STRING_edges(gene_path, ppi_threshold, type, gene_list):
-    save_path = os.path.join(gene_path, 'edge_index_{}_{}.npy'.format(ppi_threshold, type))
+    save_path = os.path.join(gene_path, f'edge_index_{ppi_threshold}_{type}.npy')
     if not os.path.exists(save_path):
         # gene_list
-        ppi = pd.read_csv(os.path.join(gene_path, 'CCLE_2369_{}.csv'.format(ppi_threshold)), index_col=0)
+        ppi = pd.read_csv(os.path.join(gene_path, f'CCLE_2369_{ppi_threshold}.csv'), index_col=0)
 
         # joint graph (without pathway)
         if type == 'joint':
@@ -109,9 +114,9 @@ def get_STRING_edges(gene_path, ppi_threshold, type, gene_list):
             edge_index = np.concatenate(edge_index, 1)
 
         # Conserve edge_index
-        print(len(edge_index[0]))
+        # print(len(edge_index[0]))
         np.save(
-            os.path.join(rpath + 'Data/Cell/', 'edge_index_{}_{}.npy'.format(ppi_threshold, type)),
+            os.path.join(rpath + 'Data/Cell/', f'edge_index_{ppi_threshold}_{type}.npy'),
             edge_index)
     else:
         edge_index = np.load(save_path)
