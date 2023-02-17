@@ -25,11 +25,11 @@ def arg_parse():
     parser.add_argument('--dim_drug_cell', type=int, default=256, help='hidden dim for drug and cell (default: 256)')
     parser.add_argument('--dropout_ratio', type=float, default=0.1, help='Dropout ratio (default: 0.1)')
     parser.add_argument('--epochs', type=int, default=300, help='Maximum number of epochs (default: 300)')
-    parser.add_argument('--patience', type=int, default=100, help='patience for early stopping (default: 10)')
+    parser.add_argument('--patience', type=int, default=10, help='patience for early stopping (default: 10)')
     parser.add_argument('--mode', type=str, default='train', help='train, test')
     parser.add_argument('--edge', type=str, default='STRING', help='STRING, BIOGRID') # BIOGRID: removed
-    parser.add_argument('--string_edge', type=float, default=0.99, help='Threshold for edges of cell line graph')
-    parser.add_argument('--dataset', type=str, default='2369disjoint', help='2369joint, 2369disjoint, COSMIC')
+    parser.add_argument('--string_edge', type=float, default=990, help='Threshold for edges of cell line graph')
+    parser.add_argument('--dataset', type=str, default='disjoint', help='2369joint, 2369disjoint, COSMIC')
     parser.add_argument('--trans', type=bool, default=True, help='Use Transformer or not')
     parser.add_argument('--sim', type=bool, default=False, help='Construct homogeneous similarity networks or not')
     return parser.parse_args()
@@ -37,7 +37,7 @@ def arg_parse():
 
 def main():
     args = arg_parse()
-    args.device = 'cuda:{}'.format(args.device)
+    args.device = torch.device(f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu')
     rpath = './'
     result_path = rpath + 'Result/'
     
@@ -49,8 +49,10 @@ def main():
     
     data = pd.read_csv(rpath+'Data/sorted_IC50_82833_580_170.csv')
     
-    drug_dict = np.load(rpath+'Data/Drug/drug_feature_graph.npy', allow_pickle=True).item() # pyg format of drug graph
-    cell_dict = np.load(rpath+f'Data/Cell/cell_feature_std_{args.dataset}.npy', allow_pickle=True).item() # pyg data format of cell graph
+    with open(rpath+'Data/Drug/drug_feature_graph.npy', 'rb') as file:
+        drug_dict = pickle.load(file) # pyg format of drug graph
+    with open(rpath+f'Data/Cell/cell_feature_std_{args.dataset}.pkl', 'rb') as file:
+        cell_dict = pickle.load(file) # pyg data format of cell graph
 
     example = cell_dict['ACH-000001']
     args.num_feature = example.x.shape[1] # 1
@@ -99,11 +101,13 @@ def main():
         result_type = 'results_sim' if args.sim==True else 'results'
         results_path = get_path(args, result_path, result_type=result_type)
         
+        os.makedirs('/'.join(results_path.split('/')[:-1]), exist_ok=True)
         with open(results_path, 'w') as f:
             f.write(result_col + '\n')
         criterion = nn.MSELoss()
         opt = torch.optim.Adam(model.parameters(), lr=args.lr)
 
+        os.makedirs(f'{rpath}weights', exist_ok=True)
         state_dict_name = f'{rpath}weights/weight_sim_seed{args.seed}.pth' if args.sim==True else f'{rpath}weights/weight_seed{args.seed}.pth'
         stopper = EarlyStopping(mode='lower', patience=args.patience, filename=state_dict_name)
 
@@ -160,19 +164,25 @@ def main():
         print('\t\tMSE\tRMSE\tMAE\tPCC\tSCC')
         print('Test result: {}\t{}\t{}\t{}\t{}'.format(r4(test_MSE), r4(test_RMSE), r4(test_MAE), r4(test_PCC), r4(test_SCC)))
         
+
+        '''Interpolation of unknown values'''
+        inference(model, drug_dict, cell_dict, edge_index, f'inference_seed{args.seed}.xlsx', args, data)
+        
         
         '''GradCAM'''
         # ----- (1) Calculate gradient-based importance score for one cell line-drug pair -----        
         # drug_name, cell_name = 'Dihydrorotenone', 'ACH-001374'
+        # os.makedirs(f'{rpath}GradCAM')
         # gradcam_path =  get_path(args, rpath + 'GradCAM/', result_type=f'{drug_name}_{cell_name}_gradcam', extension='csv')
         
-        # gene_dict = np.load(rpath + 'Data/Cell/cell_idx2gene_dict.npy', allow_pickle=True)
+        # with open(rpath + 'Data/Cell/cell_idx2gene_dict.npy', 'rb') as file:
+        #     gene_dict = pickle.load(file)
         
         # # Save importance score
         # sorted_cell_node_importance, indices = gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
         # idx2gene = [gene_dict[idx] for idx in indices]
         
-        # sorted_cell_node_importance = list(sorted_cell_node_importance.cpu().detach().numpy())
+        # sorted_cell_node_importance = list(sorted_cell_node_importance.detach().cpu().numpy())
         # indice = list(indices)
         
         # df = pd.DataFrame((zip(sorted_cell_node_importance, indice, idx2gene)), columns=['cell_node_importance','indice','idx2gene'])
@@ -180,39 +190,40 @@ def main():
         # print(*list(df['idx2gene'])[:30])
         
         # ----- (2) Calculate scores from total test set in 'inference.csv' -----
-        # data = pd.read_excel(f'inference_seed{args.seed}.xlsx', sheet_name='test')
-        # name = data[['Drug name', 'DepMap_ID']]
+        data = pd.read_excel(f'inference_seed{args.seed}.xlsx', sheet_name='test')
+        name = data[['Drug name', 'DepMap_ID']]
         
-        # gene_dict = np.load(rpath + 'Data/Cell/cell_idx2gene_dict.npy', allow_pickle=True)
+        with open(rpath + 'Data/Cell/cell_idx2gene_dict.npy', 'rb') as file:
+            gene_dict = pickle.load(file)
         
-        # total_gene_df = pd.Series(list(range(len(data))))
-        # for i in tqdm(range(len(data))):
-        #     drug_name, cell_name = name.iloc[i]
-        #     _, indices = gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
-        #     idx2gene = [gene_dict[idx] for idx in indices]
-        #     gene_df = pd.DataFrame(idx2gene)
-        #     total_gene_df.loc[i] = ', '.join(list(gene_df.drop_duplicates(keep='first')[0])[:5])
+        total_gene_df = pd.Series(list(range(len(data))))
+        for i in tqdm(range(len(data))):
+            drug_name, cell_name = name.iloc[i]
+            _, indices = gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
+            idx2gene = [gene_dict[idx] for idx in indices]
+            gene_df = pd.DataFrame(idx2gene)
+            total_gene_df.loc[i] = ', '.join(list(gene_df.drop_duplicates(keep='first')[0])[:5])
         
-        # data['Top5 genes'] = total_gene_df
-        # data.to_excel(f'inference_seed{args.seed}_gradcam.xlsx', sheet_name='test')
+        data['Top5 genes'] = total_gene_df
+        data.to_excel(f'inference_seed{args.seed}_gradcam.xlsx', sheet_name='test')
         
             
         '''Visualize pathway-drug self-attention score from Transformer'''
         # ----- (1) For one cell line - drug pair -----
         
-        # drug_name, cell_name = 'Rapamycin', 'ACH-000019'
+        drug_name, cell_name = 'Dasatinib', 'ACH-000072'
 
         # # print(cell_name)
-        # attn_score = attention_score(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
+        attn_score = attention_score(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
         # print(f'attn_score: {attn_score}')
         # print(f'attn_score.shape: {attn_score.shape}') # attn_score.shape: torch.Size([1, 35, 35])
         # # print(torch.sum(attn_score, axis=1))
-        # with open(rpath+'Data/Cell/34pathway_score990.pkl', 'rb') as file:
-        #     pathway_names = pickle.load(file).keys()
-        # tks = [p[5:] for p in list(pathway_names)]
-        # tks.append(drug_name)
+        with open(rpath+'Data/Cell/34pathway_score990.pkl', 'rb') as file:
+            pathway_names = pickle.load(file).keys()
+        tks = [p[5:] for p in list(pathway_names)]
+        tks.append(drug_name)
         # # print(tks)
-        # draw_pair_heatmap(attn_score, drug_name, cell_name, tks, args)
+        draw_pair_heatmap(attn_score, drug_name, cell_name, tks, args)
         
         # ----- (2) Heatmap of all cell lines of one drug -----
         
@@ -236,10 +247,6 @@ def main():
         # xtks.append(drug_name)
         # total_result = total_result[1:,:-1]
         # draw_drug_heatmap(total_result, drug_name, xtks, cell_list, args)
-        
-
-        '''Interpolation of unknown values'''
-#         inference(model, drug_dict, cell_dict, edge_index, f'inference_seed{args.seed}.xlsx', args)
         
         
 if __name__ == "__main__":

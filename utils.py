@@ -16,6 +16,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
 import openpyxl
+import os
 
 
 rpath = './'
@@ -104,8 +105,8 @@ def validate(model, loader, args):
     df = np.array([y_pred.squeeze().cpu().numpy(), y_true.squeeze().cpu().numpy()])
     df = pd.DataFrame(df.T, columns=['y_pred','y_true'])
     
-    mse = (total_loss / len(loader.dataset)).cpu().detach().numpy()
-    rmse = (torch.sqrt(total_loss / len(loader.dataset))).cpu().detach().numpy()
+    mse = (total_loss / len(loader.dataset)).detach().cpu().numpy()
+    rmse = (torch.sqrt(total_loss / len(loader.dataset))).detach().cpu().numpy()
     mae = mean_absolute_error(y_true.cpu(), y_pred.cpu())
     pcc = pearsonr(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())[0]
     scc = spearmanr(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())[0]
@@ -137,7 +138,7 @@ def gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
     cell_node_importance = cell_node_importance / cell_node_importance.sum()
     sorted, indices = torch.sort(cell_node_importance, descending=True)
 
-    return sorted, indices.cpu().detach().numpy()
+    return sorted, indices.detach().cpu().numpy()
 
 
 def embedding(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args):
@@ -157,14 +158,14 @@ def attention_score(model, drug_name, cell_name, drug_dict, cell_dict, edge_inde
     cell = Batch.from_data_list([cell_dict[cell_name]]).to(args.device)
     
     model.eval()
-    score = model.attn_score(drug, cell)
+    score = model.attn_score(drug, cell)[0]
 
     return score
 
 
 
 def draw_pair_heatmap(attn_score, drug_name, cell_name, ticks, args):
-    attn_score = torch.squeeze(attn_score).cpu().detach().numpy()
+    attn_score = torch.squeeze(attn_score).mean(axis=0).detach().cpu().numpy()
     # print(np.sum(attn_score, axis=1))
     # print(attn_score)
     # attn_score = np.flip(attn_score, axis=0)
@@ -192,6 +193,7 @@ def draw_pair_heatmap(attn_score, drug_name, cell_name, ticks, args):
     # # print(cell_name)
     # cell_name = cellname_dict[cell_name]
     plt.title(f'{drug_name} - {cell_name} self attention score')
+    os.makedirs(f'{rpath}Result/Heatmap', exist_ok=True)
     plt.savefig(rpath + 'Result/' f'Heatmap/seed{args.seed}_{drug_name}_{cell_name}.png')
 
 
@@ -215,16 +217,16 @@ def draw_drug_heatmap(attn_score, drug_name, xticks, yticks, args):
     # # print(cell_name)
     # cell_name = cellname_dict[cell_name]
     plt.title(f'{drug_name} self attention score')
+    os.makedirs(f'{rpath}Result/Heatmap', exist_ok=True)
     plt.savefig(rpath + 'Result/' + f'Heatmap/seed{args.seed}_{drug_name}.png')
     
     
 
-def inference(model, drug_dict, cell_dict, edge_index, save_name, args):
+def inference(model, drug_dict, cell_dict, edge_index, save_name, args, IC):
     """
     Predict missing values
     """    
     model.eval()
-    IC = pd.read_csv(rpath+"Data/sorted_IC50_82833_580_170.csv")
 
     train_set, val_test_set = train_test_split(IC, test_size=0.2, random_state=args.seed)
     val_set, test_set = train_test_split(val_test_set, test_size=0.5, random_state=args.seed)
@@ -239,7 +241,7 @@ def inference(model, drug_dict, cell_dict, edge_index, save_name, args):
     All drug-cellline combinations are stacked on top, and only pairs with IC50 values ​​are stacked on the bottom.
     In drop_duplicate, if you delete duplicates from the top and bottom (= those with IC50) with keep=False, only unknown pairs remain
     '''
-    unknown_set = drug_cell_table.append(IC[["Drug name", "DepMap_ID", "stripped_cell_line_name"]]) 
+    unknown_set = pd.concat([drug_cell_table, IC[["Drug name", "DepMap_ID", "stripped_cell_line_name"]]], axis=0)
     unknown_set.drop_duplicates(keep=False, inplace=True) # Pairs with no IC50 values
     dataset = {'train':train_set, 'val':val_set, 'test':test_set, 'unknown':unknown_set}
     writer = pd.ExcelWriter(save_name)
@@ -263,9 +265,9 @@ def inference(model, drug_dict, cell_dict, edge_index, save_name, args):
         table = pd.concat([drug_name, cell_ID, cell_line_name], axis=1)
         if dataset_name != 'unknown':
             table["IC50"] = data["IC50"]
-        table["IC50_Pred"] = IC50_pred.cpu().numpy()
+        table["IC50_Pred"] = IC50_pred.detach().cpu().numpy()
         if dataset_name != 'unknown':
-            table["Abs_error"] = np.abs(IC50_pred.cpu().numpy()-np.array(table["IC50"]).reshape(-1,1))
+            table["Abs_error"] = np.abs(IC50_pred.detach().cpu().numpy()-np.array(table["IC50"]).reshape(-1,1))
         table.to_excel(writer, sheet_name=dataset_name, index=False)
         torch.cuda.empty_cache()
     writer.close()
