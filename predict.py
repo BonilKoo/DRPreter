@@ -98,6 +98,7 @@ def pathway_attention_score(data, model, drug_dict, cell_dict, edge_index, args)
             total_pathway_df.loc[index] = ', '.join(average_attn_score.index.to_list()[:args.top_k])
     
     data[f'Top{args.top_k} pathways'] = total_pathway_df
+    os.makedirs(args.path_result, exist_ok=True)
     data.to_csv(f'{args.path_result}/predicted.csv', index=False)
     
     return data
