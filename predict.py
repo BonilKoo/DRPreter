@@ -19,7 +19,7 @@ def parse_args():
     
     parser.add_argument('--input', required=True, help='Input csv file for prediction. First column: name | Second column: SMILES')
     parser.add_argument('--path_result', required=True, help='Path to save results')
-    parser.add_argument('--top_k', default=5, help='The number of genes with high importance scores to store in the file')
+    parser.add_argument('--top_k', default=10, help='The number of genes with high importance scores to store in the file')
     
     parser.add_argument('--device', type=int, default=0, help='device')
     
