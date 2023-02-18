@@ -333,22 +333,28 @@ def _collate_MLP_multi(samples):
     return batched_graph, [torch.stack(exp, 0), torch.stack(cn, 0), torch.stack(mu, 0)], torch.tensor(labels)
 
 
-def load_data(IC, drug_dict, cell_dict, edge_index, args): # For PPI network
+def load_data(IC, drug_dict, cell_dict, edge_index, args, val_ratio=0.1, test_ratio=0.1): # For PPI network
 # def load_data(IC, drug_dict, cell_dict, args, edge_index=None): # For MLP
-
-    train_set, val_test_set = train_test_split(IC, test_size=0.2, random_state=args.seed)
-    val_set, test_set = train_test_split(val_test_set, test_size=0.5, random_state=args.seed)
-        
     
     Dataset = MyDataset
     collate_fn = _collate
-    train_dataset = Dataset(drug_dict, cell_dict, train_set, edge_index=edge_index)
-    val_dataset = Dataset(drug_dict, cell_dict, val_set, edge_index=edge_index)
-    test_dataset = Dataset(drug_dict, cell_dict, test_set, edge_index=edge_index)
+    
+    if test_ratio == 1:
+        train_loader, val_loader = None, None
+        test_dataset = Dataset(drug_dict, cell_dict, IC, edge_index=edge_index)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
+        
+    else:
+        train_set, val_test_set = train_test_split(IC, test_size=val_ratio+test_ratio, random_state=args.seed)
+        val_set, test_set = train_test_split(val_test_set, test_size=test_ratio/(val_ratio+test_ratio), random_state=args.seed)    
 
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
+        train_dataset = Dataset(drug_dict, cell_dict, train_set, edge_index=edge_index)
+        val_dataset = Dataset(drug_dict, cell_dict, val_set, edge_index=edge_index)
+        test_dataset = Dataset(drug_dict, cell_dict, test_set, edge_index=edge_index)
+
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
+        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
 
     return train_loader, val_loader, test_loader
 
