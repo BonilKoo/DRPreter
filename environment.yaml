@@ -8,7 +8,6 @@ dependencies:
   - pip:
     - dgl==1.0.0
     - dgllife==0.3.1
-    - openpyxl==3.1.0
     - pandas==1.5.3
     - rdkit==2022.9.4
     - seaborn==0.12.2

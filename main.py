@@ -1,7 +1,5 @@
 import os
-import sys
 import argparse
-# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 import torch
 import torch.nn as nn
 import numpy as np
@@ -14,6 +12,7 @@ from torch_scatter import scatter_add
 
 def arg_parse():
     parser = argparse.ArgumentParser()
+    
     parser.add_argument('--seed', type=int, default=42, help='seed')
     parser.add_argument('--device', type=int, default=0, help='device')
     parser.add_argument('--batch_size', type=int, default=128, help='batch size (default: 128)')
@@ -27,50 +26,49 @@ def arg_parse():
     parser.add_argument('--epochs', type=int, default=300, help='Maximum number of epochs (default: 300)')
     parser.add_argument('--patience', type=int, default=10, help='patience for early stopping (default: 10)')
     parser.add_argument('--mode', type=str, default='train', help='train, test')
-    parser.add_argument('--edge', type=str, default='STRING', help='STRING, BIOGRID') # BIOGRID: removed
-    parser.add_argument('--string_edge', type=float, default=990, help='Threshold for edges of cell line graph')
-    parser.add_argument('--dataset', type=str, default='disjoint', help='2369joint, 2369disjoint, COSMIC')
     parser.add_argument('--trans', type=bool, default=True, help='Use Transformer or not')
     parser.add_argument('--sim', type=bool, default=False, help='Construct homogeneous similarity networks or not')
+    parser.add_argument('--path_result', default='./Result', help='A path to save results')
+    parser.add_argument('--edge_index', default='./Data/Cell/edge_index_disjoint.npy', help='An edge index file generated from cellline_graph.py')
+    parser.add_argument('--dataset', default='./Data/sorted_IC50_82833_580_170.csv', help='Dataset containing information for cell line, drug, and IC50 value')
+    parser.add_argument('--drug_dict', default='./Data/Drug/drug_feature_graph.pkl', help='A dictionary file generated from drug_graph.py')
+    parser.add_argument('--cell_dict', default='./Data/Cell/cell_feature_std.pkl', help='A dictionary file generated from cellline_graph.py')
+    
     return parser.parse_args()
 
 
 def main():
     args = arg_parse()
     args.device = torch.device(f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu')
-    rpath = './'
-    result_path = rpath + 'Result/'
+    result_path = args.path_result
+    os.makedirs(result_path, exist_ok=True)
     
     print(f'seed: {args.seed}')
     set_random_seed(args.seed)
     
-    edge_type = 'PPI_'+str(args.string_edge) if args.edge=='STRING' else args.edge
-    edge_index = np.load(rpath+f'Data/Cell/edge_index_{edge_type}_{args.dataset}.npy')
+    edge_index = np.load(args.edge_index)
     
-    data = pd.read_csv(rpath+'Data/sorted_IC50_82833_580_170.csv')
+    data = pd.read_csv(args.dataset)
     
-    with open(rpath+'Data/Drug/drug_feature_graph.npy', 'rb') as file:
+    with open(args.drug_dict, 'rb') as file:
         drug_dict = pickle.load(file) # pyg format of drug graph
-    with open(rpath+f'Data/Cell/cell_feature_std_{args.dataset}.pkl', 'rb') as file:
+    with open(args.cell_dict, 'rb') as file:
         cell_dict = pickle.load(file) # pyg data format of cell graph
 
-    example = cell_dict['ACH-000001']
-    args.num_feature = example.x.shape[1] # 1
-    args.num_genes = example.x.shape[0] # 4646
+    for key in cell_dict.keys():
+        example = cell_dict[key]
+        args.num_feature = example.x.shape[1] # 1
+        args.num_genes = example.x.shape[0] # 4646
     # print(f'num_feature: {args.num_feature}, num_genes: {args.num_genes}')
     # sys.exit('Bye!')
             
-    if 'disjoint' in args.dataset:
-        gene_list = scatter_add(torch.ones_like(example.x.squeeze()), example.x_mask.to(torch.int64)).to(torch.int)
-        args.max_gene = gene_list.max().item()
-        args.cum_num_nodes = torch.cat([gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0)
-        args.n_pathways = gene_list.size(0)
-        print('num_genes:{}, num_edges:{}'.format(args.num_genes, len(edge_index[0])))
-        print('gene distribution: {}'.format(gene_list))
-        print('mean degree:{}'.format(len(edge_index[0]) / args.num_genes))
-    else:
-        print('num_genes:{}, num_edges:{}'.format(args.num_genes, len(edge_index[0])))
-        print('mean degree:{}'.format(len(edge_index[0]) / args.num_genes))
+    gene_list = scatter_add(torch.ones_like(example.x.squeeze()), example.x_mask.to(torch.int64)).to(torch.int)
+    args.max_gene = gene_list.max().item()
+    args.cum_num_nodes = torch.cat([gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0)
+    args.n_pathways = gene_list.size(0)
+    print('num_genes:{}, num_edges:{}'.format(args.num_genes, len(edge_index[0])))
+    print('gene distribution: {}'.format(gene_list))
+    print('mean degree:{}'.format(len(edge_index[0]) / args.num_genes))
         
         
     # ---- [1] Pathway + Transformer ----
@@ -193,7 +191,7 @@ def main():
         data = pd.read_excel(f'inference_seed{args.seed}.xlsx', sheet_name='test')
         name = data[['Drug name', 'DepMap_ID']]
         
-        with open(rpath + 'Data/Cell/cell_idx2gene_dict.pkl', 'rb') as file:
+        with open(rpath + 'Data/Cell/cell_idx2gene_dict.npy', 'rb') as file:
             gene_dict = pickle.load(file)
         
         total_gene_df = pd.Series(list(range(len(data))))

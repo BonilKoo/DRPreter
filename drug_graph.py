@@ -121,7 +121,5 @@ def save_drug_graph(args):
 
 if __name__ == '__main__':
     args = parse_args()
-#     graph = smiles2graph('O1C=C[C@H]([C@H]1O2)c3c2cc(OC)c4c3OC(=O)C5=C4CCC(=O)5')
-#     print(graph.x.shape)
-#     print(graph.edge_attr.shape)
+
     save_drug_graph(args)
