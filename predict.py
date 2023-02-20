@@ -19,16 +19,17 @@ def parse_args():
     
     parser.add_argument('--input', required=True, help='Input csv file for prediction. First column: name | Second column: SMILES')
     parser.add_argument('--path_result', required=True, help='Path to save results')
+    parser.add_argument('--result_file', required=True, help='File name to save')
     parser.add_argument('--top_k', default=10, help='The number of genes with high importance scores to store in the file')
     
     parser.add_argument('--device', type=int, default=0, help='device')
     
-    parser.add_argument('--cell_info', default=f'{os.getcwd()}/Data/Cell/cell_line_info.csv')
-    parser.add_argument('--cell_dict', default=f'{os.getcwd()}/Data/Cell/cell_feature_std_disjoint.pkl', help='Cell graph')
-    parser.add_argument('--edge_index', default=f'{os.getcwd()}/Data/Cell/edge_index_PPI_990_disjoint.npy', help='STRING edges')
-    parser.add_argument('--model', default=f'{os.getcwd()}/weights/weight_seed42.pth', help='Trained DRPreter model')
-    parser.add_argument('--gene_dict', default=f'{os.getcwd()}/Data/Cell/cell_idx2gene_dict.pkl', help='A dictionary to map indices to gene names')
-    parser.add_argument('--pathway_dict', default=f'{os.getcwd()}/Data/Cell/34pathway_score990.pkl', help='A dictionary of pathways and genes belonging to them')
+    parser.add_argument('--cell_info', default=f'./Data/Cell/cell_line_info.csv')
+    parser.add_argument('--cell_dict', default=f'./Data/Cell/cell_feature_std.pkl', help='Cell graph')
+    parser.add_argument('--edge_index', default=f'./Data/Cell/edge_index.npy', help='STRING edges')
+    parser.add_argument('--model', default=f'./weights/weight_seed42.pth', help='Trained DRPreter model')
+    parser.add_argument('--gene_dict', default=f'./Data/Cell/cell_idx2gene_dict.pkl', help='A dictionary to map indices to gene names')
+    parser.add_argument('--pathway_dict', default=f'./Data/Cell/34pathway_score990.pkl', help='A dictionary of pathways and genes belonging to them')
     
     return parser.parse_args()
 
@@ -131,11 +132,14 @@ def main():
     drug_dict = drug_to_graph(args.input)    
     
     for key in cell_dict.keys():
-        example = cell_dict[key]
-        args.num_genes, args.num_feature = example.x.shape
+        example_cell = cell_dict[key]
+        args.num_genes, args.num_cell_feature = example_cell.x.shape
         break
+    for key in drug_dict.keys():
+        example_drug = drug_dict[key]
+        args.num_drug_feature = example_drug.x.shape[1]
     
-    gene_list = scatter_add(torch.ones_like(example.x.squeeze()), example.x_mask.to(torch.int64)).to(torch.int)
+    gene_list = scatter_add(torch.ones_like(example_cell.x.squeeze()), example_cell.x_mask.to(torch.int64)).to(torch.int)
     args.n_pathways = gene_list.size(0)
     args.max_gene = gene_list.max().item()
     args.cum_num_nodes = torch.cat([gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0)

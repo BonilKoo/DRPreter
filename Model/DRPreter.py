@@ -9,23 +9,23 @@ class DRPreter(nn.Module):
         super().__init__()
         self.batch_size = args.batch_size
 
-        self.num_feature = args.num_feature
+        self.num_cell_feature = args.num_cell_feature
         self.num_genes = args.num_genes
         self.cum_num_nodes = args.cum_num_nodes
         self.max_gene = args.max_gene
         self.n_pathways = args.n_pathways
 
 
+        self.num_drug_feature = args.num_drug_feature
         self.layer_drug = args.layer_drug
         self.dim_drug = args.dim_drug
         self.layer_cell = args.layer
         self.dim_cell = args.hidden_dim
         self.dim_drug_cell = args.dim_drug_cell
         self.dropout_ratio = args.dropout_ratio
-        self.trans = args.trans
 
         #  ---- (1) Drug branch ----
-        self.DrugEncoder = DrugEncoder(self.layer_drug, self.dim_drug)
+        self.DrugEncoder = DrugEncoder(self.layer_drug, self.dim_drug, self.num_drug_feature)
 
         self.drug_emb = nn.Sequential(
             nn.Linear(self.dim_drug * self.layer_drug, self.dim_drug_cell),
@@ -34,36 +34,21 @@ class DRPreter(nn.Module):
         )
 
         # ---- (2) Cell line branch ----
-        self.CellEncoder = CellEncoder(self.num_feature, self.num_genes, self.layer_cell, self.dim_cell)
+        self.CellEncoder = CellEncoder(self.num_cell_feature, self.num_genes, self.layer_cell, self.dim_cell)
 
 
-        if self.trans:
-            self.cell_emb = nn.Sequential(
-                nn.Linear(self.dim_cell * self.max_gene, 1024),
-                nn.ReLU(),
-                nn.Dropout(p=self.dropout_ratio),
-                nn.Linear(1024, self.dim_drug_cell),
-                nn.ReLU(),
-                nn.Dropout(p=self.dropout_ratio)
-            )
-            
-            #self.token_emb = nn.Embedding(2, self.dim_drug_cell)
-            self.Transformer = Transformer(d_model=self.dim_drug_cell, nhead=8, num_encoder_layers=1, dim_feedforward=self.dim_drug_cell)
-            # reg_input = self.dim_drug_cell * (args.n_pathways+1)
-            reg_input = self.dim_drug_cell*2
-            reg_hidden = 512
+        self.cell_emb = nn.Sequential(
+            nn.Linear(self.dim_cell * self.max_gene, 1024),
+            nn.ReLU(),
+            nn.Dropout(p=self.dropout_ratio),
+            nn.Linear(1024, self.dim_drug_cell),
+            nn.ReLU(),
+            nn.Dropout(p=self.dropout_ratio)
+        )
 
-        else:
-            self.cell_emb = nn.Sequential(
-                nn.Linear(self.dim_cell * self.num_genes, 1024),
-                nn.ReLU(),
-                nn.Dropout(p=self.dropout_ratio),
-                nn.Linear(1024, self.dim_drug_cell),
-                nn.ReLU(),
-                nn.Dropout(p=self.dropout_ratio),
-            )
-            reg_input = self.dim_drug_cell*2
-            reg_hidden = reg_input
+        self.Transformer = Transformer(d_model=self.dim_drug_cell, nhead=8, num_encoder_layers=1, dim_feedforward=self.dim_drug_cell)
+        reg_input = self.dim_drug_cell*2
+        reg_hidden = 512
 
 
         # ---- (3) Regression using cell embedding and drug emdbedding ----
@@ -107,45 +92,35 @@ class DRPreter(nn.Module):
         return  x_pad                                                                      # shape (128, 34, max_gene * self.dim_cell)
 
 
-    def aggregate(self, x_cell, x_drug, trans=False):
+    def aggregate(self, x_cell, x_drug):
+        '''
+        x_drug shape: batch, 1, dim + (c_dim)
+        x_cell shape: batch, path, dim + (c_dim)
+        '''
 
-        if trans:
-            '''
-            x_drug shape: batch, 1, dim + (c_dim)
-            x_cell shape: batch, path, dim + (c_dim)
-            '''
-            
-            ''' method 1: pathway drug transformer -> pathway summation & drug : '''
-            x_drug = x_drug.view(x_drug.size(0), 1, -1)        # x_drug.shape: torch.Size([128, 1, 256])
+        ''' method 1: pathway drug transformer -> pathway summation & drug : '''
+        x_drug = x_drug.view(x_drug.size(0), 1, -1)        # x_drug.shape: torch.Size([128, 1, 256])
 
-            ''' token embedding '''
-            # x_drug_pos = self.token_emb(torch.zeros((x_drug.shape[0], x_drug.shape[1]), dtype=torch.long).to(device=x_drug.device))
-            # x_cell_pos = self.token_emb(torch.ones((x_cell.shape[0], x_cell.shape[1]), dtype=torch.long).to(device=x_cell.device))
-            # print(x_drug_pos.shape, x_cell_pos.shape)
-            # x_cell += x_cell_pos
-            # x_drug += x_drug_pos
-            
-            # -----
-            x = torch.cat([x_cell, x_drug], 1)
-            x, attn_score = self.Transformer(x)                # x.shape: torch.Size([128, 35, 256])
-            x_cell = x[:, :-1, :].sum(dim=1)                   # x[:, :-1, :].shape: torch.Size([128, 34, 256]) ==> x_cell.shape: torch.Size([128, 256])
-            x_drug_res = x[:, -1:, :]                          # x_drug.shape: torch.Size([128, 256])
-            # print(x_drug.shape, x_drug_res.shape)
-            x_drug = x_drug + x_drug_res
-            x_drug = x_drug.view(x_drug.size(0), -1)
-            x = torch.cat([x_drug, x_cell], -1)
-            # x = x.view(x.size(0), -1)
-            # -----
+        ''' token embedding '''
+        # x_drug_pos = self.token_emb(torch.zeros((x_drug.shape[0], x_drug.shape[1]), dtype=torch.long).to(device=x_drug.device))
+        # x_cell_pos = self.token_emb(torch.ones((x_cell.shape[0], x_cell.shape[1]), dtype=torch.long).to(device=x_cell.device))
+        # print(x_drug_pos.shape, x_cell_pos.shape)
+        # x_cell += x_cell_pos
+        # x_drug += x_drug_pos
 
-            ''' method 2: only pathway summation & drug: 84.06%'''
-            # x_cell = x_cell.sum(dim=1)                   # x[:, :-1, :].shape: torch.Size([128, 34, 256]) ==> x_cell.shape: torch.Size([128, 256])
-            # x = torch.cat([x_drug, x_cell], -1)
-            return x, attn_score
-        else:
-            ''' w/o transformer: squeezed all genes & drug: 83.11%'''
-            x = torch.cat([x_drug, x_cell], -1)                # x.shape: torch.Size([128, 512])
-
-            return x
+        # -----
+        x = torch.cat([x_cell, x_drug], 1)
+        x, attn_score = self.Transformer(x)                # x.shape: torch.Size([128, 35, 256])
+        x_cell = x[:, :-1, :].sum(dim=1)                   # x[:, :-1, :].shape: torch.Size([128, 34, 256]) ==> x_cell.shape: torch.Size([128, 256])
+        x_drug_res = x[:, -1:, :]                          # x_drug.shape: torch.Size([128, 256])
+        # print(x_drug.shape, x_drug_res.shape)
+        x_drug = x_drug + x_drug_res
+        x_drug = x_drug.view(x_drug.size(0), -1)
+        x = torch.cat([x_drug, x_cell], -1)
+        # x = x.view(x.size(0), -1)
+        # -----
+        
+        return x, attn_score
 
 
     def forward(self, drug, cell):
@@ -157,10 +132,10 @@ class DRPreter(nn.Module):
         x_cell = self.CellEncoder(cell)
         mask = cell.x_mask[cell.batch==0].to(torch.long)
 
-        x_cell = self.cell_emb(self.padding(x_cell, mask)) if self.trans else self.cell_emb(x_cell)
+        x_cell = self.cell_emb(self.padding(x_cell, mask))
 
         # ---- (3) combine drug feature and cell line feature ----
-        x, _ = self.aggregate(x_cell, x_drug, trans=self.trans)
+        x, _ = self.aggregate(x_cell, x_drug)
         x = self.regression(x)
 
         return x
@@ -177,7 +152,7 @@ class DRPreter(nn.Module):
         # ---- (2) forward cell ----
         x_cell = self.CellEncoder(cell)
         mask = cell.x_mask[cell.batch==0].to(torch.long)
-        x_cell = self.cell_emb(self.padding(x_cell, mask)) if self.trans else self.cell_emb(x_cell)
+        x_cell = self.cell_emb(self.padding(x_cell, mask))
 
         # ---- (3) Get cell line and drug embeddings ----
         return x_drug, x_cell
@@ -192,9 +167,9 @@ class DRPreter(nn.Module):
         x_cell = self.CellEncoder(cell)
         mask = cell.x_mask[cell.batch==0].to(torch.long)
 
-        x_cell = self.cell_emb(self.padding(x_cell, mask)) if self.trans else self.cell_emb(x_cell)
+        x_cell = self.cell_emb(self.padding(x_cell, mask))
 
         # ---- (3) combine drug feature and cell line feature ----
-        _, attn_score = self.aggregate(x_cell, x_drug, trans=self.trans)
+        _, attn_score = self.aggregate(x_cell, x_drug)
 
         return attn_score

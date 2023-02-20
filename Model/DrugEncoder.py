@@ -1,26 +1,26 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GINConv, JumpingKnowledge, global_max_pool
 
 
-class DrugEncoder(torch.nn.Module):
-    def __init__(self, layer_drug, dim_drug):
+class DrugEncoder(nn.Module):
+    def __init__(self, layer_drug, dim_drug, num_feature):
         super().__init__()
         self.layer_drug = layer_drug
         self.dim_drug = dim_drug
+        self.num_feature = num_feature
         self.JK = JumpingKnowledge('cat')
-        self.convs_drug = torch.nn.ModuleList()
-        self.bns_drug = torch.nn.ModuleList()
+        self.convs_drug = nn.ModuleList()
+        self.bns_drug = nn.ModuleList()
 
         for i in range(self.layer_drug):
             if i:
                 block = nn.Sequential(nn.Linear(self.dim_drug, self.dim_drug), nn.ReLU(),
                                       nn.Linear(self.dim_drug, self.dim_drug))
             else:
-                block = nn.Sequential(nn.Linear(77, self.dim_drug), nn.ReLU(), nn.Linear(self.dim_drug, self.dim_drug))
+                block = nn.Sequential(nn.Linear(self.num_feature, self.dim_drug), nn.ReLU(), nn.Linear(self.dim_drug, self.dim_drug))
             conv = GINConv(block)
-            bn = torch.nn.BatchNorm1d(self.dim_drug)
+            bn = nn.BatchNorm1d(self.dim_drug)
 
             self.convs_drug.append(conv)
             self.bns_drug.append(bn)

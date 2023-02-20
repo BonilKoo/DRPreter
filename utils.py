@@ -17,42 +17,14 @@ import seaborn as sns
 import os
 
 
-rpath = './'
-dict_dir = rpath + 'Data/Similarity/dict/'
-cell_id2idx_dict = np.load(dict_dir+'cell_id2idx_dict', allow_pickle=True)
-drug_name2idx_dict = np.load(dict_dir+'drug_name2idx_dict', allow_pickle=True)
-cell_idx2id_dict = np.load(dict_dir+'cell_idx2id_dict', allow_pickle=True)
-drug_idx2name_dict = np.load(dict_dir+'drug_idx2name_dict', allow_pickle=True)
-
-
-def r4(value):
-    if isinstance(value, np.ndarray):    
-        return np.round(value, 4)
-    else:
-        return round(value, 4)
-
-
 def save_results(results, filename):
     with open(filename, 'a') as f:
         f.write('\t'.join(map(str, results)) + '\n')
         
 
-def get_path(args, result_path='', result_type='results', extension='txt'):
-    path = result_path + result_type + '_seed' + str(args.seed) + '.' + extension
+def get_path(args, result_path='', result_prefix='results', extension='txt'):
+    path = f'{result_path}/{result_prefix}_seed{args.seed}.{extension}'
     return path
-
-        
-# def get_path(args, result_path='', pid='', result_type='results', extension='txt'):
-#     # train => PID
-#     if args.mode == 'train':
-#         if pid == '':
-#             path = os.path.join(result_path, 'PID' + str(os.getpid())) + '_seed' + str(args.seed) + '_' + result_type + '.' + extension
-#         else:
-#             path = os.path.join(result_path, 'PID' + str(pid)) + '_seed' + str(args.seed) + '_' + result_type + '.' + extension
-#     # test => source PID of state dict 
-#     else:
-#         path = os.path.join(result_path, 'PID' + str(args.test_PID)) + '_seed' + str(args.seed) + '_' + result_type + '.' + extension
-#     return path
 
 
 def train(model, loader, loss_fn, opt, args):
@@ -61,18 +33,13 @@ def train(model, loader, loss_fn, opt, args):
 
     for data in tqdm(loader, desc='Iteration'):
         drug, cell, label = data
-        # multi omics
-        if isinstance(cell, list): 
-            drug, cell, label = drug.to(device), [feat.to(device) for feat in cell], label.to(device)
-        # single omics
-        else:
-            drug, cell, label = drug.to(device), cell.to(device), label.to(device)
+        drug, cell, label = drug.to(device), cell.to(device), label.to(device)
         output = model(drug, cell)
         loss = loss_fn(output, label.view(-1, 1).float())
         opt.zero_grad()
         loss.backward()
         opt.step()
-    print('Train Loss:{}'.format(loss))
+    print(f'Train Loss: {loss:.4f}')
 
     return loss
 
@@ -88,10 +55,7 @@ def validate(model, loader, args):
     with torch.no_grad():
         for data in tqdm(loader, desc='Iteration'):
             drug, cell, label = data
-            if isinstance(cell, list):
-                drug, cell, label = drug.to(device), [feat.to(device) for feat in cell], label.to(device)
-            else:
-                drug, cell, label = drug.to(device), cell.to(device), label.to(device)
+            drug, cell, label = drug.to(device), cell.to(device), label.to(device)
             output = model(drug, cell)
             total_loss += F.mse_loss(output, label.view(-1, 1).float(), reduction='sum')
             y_true.append(label.view(-1, 1))
@@ -100,14 +64,14 @@ def validate(model, loader, args):
     y_true = torch.cat(y_true, dim=0)
     y_pred = torch.cat(y_pred, dim=0)
 
-    df = np.array([y_pred.squeeze().cpu().numpy(), y_true.squeeze().cpu().numpy()])
+    df = np.array([y_pred.squeeze().detach().cpu().numpy(), y_true.squeeze().detach().cpu().numpy()])
     df = pd.DataFrame(df.T, columns=['y_pred','y_true'])
     
     mse = (total_loss / len(loader.dataset)).detach().cpu().numpy()
     rmse = (torch.sqrt(total_loss / len(loader.dataset))).detach().cpu().numpy()
-    mae = mean_absolute_error(y_true.cpu(), y_pred.cpu())
-    pcc = pearsonr(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())[0]
-    scc = spearmanr(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())[0]
+    mae = mean_absolute_error(y_true.detach().cpu(), y_pred.detach().cpu())
+    pcc = pearsonr(y_true.detach().cpu().numpy().flatten(), y_pred.detach().cpu().numpy().flatten())[0]
+    scc = spearmanr(y_true.detach().cpu().numpy().flatten(), y_pred.detach().cpu().numpy().flatten())[0]
     return mse, rmse, mae, pcc, scc, df
 
 
@@ -124,10 +88,10 @@ def gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
     cell_node, cell_representation = model.CellEncoder.grad_cam(cell) # cell node: torch.Size([4646, 8]), cell_representation: torch.Size([1, 37168])
     # print(f'cell node: {cell_node.shape}, cell_representation: {cell_representation.shape}')
     mask = cell.x_mask[cell.batch==0].to(torch.long)
-    cell_representation = model.cell_emb(model.padding(cell_representation, mask)) if model.trans else model.cell_emb(cell_representation)
+    cell_representation = model.cell_emb(model.padding(cell_representation, mask))
 
     # combine drug feature and cell line feature
-    x, _ = model.aggregate(cell_representation, drug_representation, trans=model.trans) # x.shape: torch.Size([1, 512])
+    x, _ = model.aggregate(cell_representation, drug_representation) # x.shape: torch.Size([1, 512])
     ic50 = model.regression(x)
     ic50.backward()
     
@@ -191,8 +155,8 @@ def draw_pair_heatmap(attn_score, drug_name, cell_name, ticks, args):
     # # print(cell_name)
     # cell_name = cellname_dict[cell_name]
     plt.title(f'{drug_name} - {cell_name} self attention score')
-    os.makedirs(f'{rpath}Result/Heatmap', exist_ok=True)
-    plt.savefig(rpath + 'Result/' f'Heatmap/seed{args.seed}_{drug_name}_{cell_name}.png')
+    os.makedirs(f'Result/Heatmap', exist_ok=True)
+    plt.savefig('Result/' f'Heatmap/seed{args.seed}_{drug_name}_{cell_name}.png')
 
 
 
@@ -215,8 +179,8 @@ def draw_drug_heatmap(attn_score, drug_name, xticks, yticks, args):
     # # print(cell_name)
     # cell_name = cellname_dict[cell_name]
     plt.title(f'{drug_name} self attention score')
-    os.makedirs(f'{rpath}Result/Heatmap', exist_ok=True)
-    plt.savefig(rpath + 'Result/' + f'Heatmap/seed{args.seed}_{drug_name}.png')
+    os.makedirs(f'Result/Heatmap', exist_ok=True)
+    plt.savefig('Result/' + f'Heatmap/seed{args.seed}_{drug_name}.png')
     
     
 
@@ -292,22 +256,6 @@ class MyDataset(Dataset):
         return (self.drug[self.drug_name[index]], self.cell[self.Cell_line_name[index]], self.value[index])
 
 
-class MyDataset_MLP(Dataset):
-    def __init__(self, drug_dict, cell_dict, IC):
-        super().__init__()
-        self.drug, self.cell = drug_dict, cell_dict
-        IC.reset_index(drop=True, inplace=True)
-        self.drug_name = IC['Drug name']
-        self.Cell_line_name = IC['DepMap_ID']
-        self.value = IC['IC50']
-
-    def __len__(self):
-        return len(self.value)
-
-    def __getitem__(self, index):
-        return (self.drug[self.drug_name[index]], self.cell[self.Cell_line_name[index]], self.value[index])
-
-
 def _collate(samples):
     drugs, cells, labels = map(list, zip(*samples))
     batched_drug = Batch.from_data_list(drugs)
@@ -315,24 +263,7 @@ def _collate(samples):
     return batched_drug, batched_cell, torch.tensor(labels)
 
 
-def _collate_MLP_single(samples):
-    drugs, cells, labels = map(list, zip(*samples))
-    batched_graph = Batch.from_data_list(drugs)
-    cells = [torch.tensor(cell) for cell in cells]
-    return batched_graph, torch.stack(cells, 0), torch.tensor(labels)
-
-
-def _collate_MLP_multi(samples):
-    drugs, cells, labels = map(list, zip(*samples))
-    batched_graph = Batch.from_data_list(drugs)
-    exp = [torch.tensor(cell[0]) for cell in cells]
-    cn = [torch.tensor(cell[1]) for cell in cells]
-    mu = [torch.tensor(cell[2]) for cell in cells]
-    return batched_graph, [torch.stack(exp, 0), torch.stack(cn, 0), torch.stack(mu, 0)], torch.tensor(labels)
-
-
-def load_data(IC, drug_dict, cell_dict, edge_index, args, val_ratio=0.1, test_ratio=0.1): # For PPI network
-# def load_data(IC, drug_dict, cell_dict, args, edge_index=None): # For MLP
+def load_data(IC, drug_dict, cell_dict, edge_index, args, val_ratio=0.1, test_ratio=0.1):
     
     Dataset = MyDataset
     collate_fn = _collate
@@ -340,7 +271,7 @@ def load_data(IC, drug_dict, cell_dict, edge_index, args, val_ratio=0.1, test_ra
     if test_ratio == 1:
         train_loader, val_loader = None, None
         test_dataset = Dataset(drug_dict, cell_dict, IC, edge_index=edge_index)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         
     else:
         train_set, val_test_set = train_test_split(IC, test_size=val_ratio+test_ratio, random_state=args.seed)
@@ -350,9 +281,9 @@ def load_data(IC, drug_dict, cell_dict, edge_index, args, val_ratio=0.1, test_ra
         val_dataset = Dataset(drug_dict, cell_dict, val_set, edge_index=edge_index)
         test_dataset = Dataset(drug_dict, cell_dict, test_set, edge_index=edge_index)
 
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
-        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
+        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
 
     return train_loader, val_loader, test_loader
 
@@ -465,6 +396,7 @@ class EarlyStopping():
 
 def set_random_seed(seed, deterministic=True):
     """Set random seed."""
+    os.environ['PYTHONHASHSEED'] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -475,72 +407,11 @@ def set_random_seed(seed, deterministic=True):
         torch.backends.cudnn.benchmark = False
 
 
-class Dataset_Sim(Dataset):
-    def __init__(self, IC):
-        super(Dataset_Sim, self).__init__()
-        IC.reset_index(drop=True, inplace=True)
-        self.drug_name = IC['Drug name']
-        self.Cell_line_name = IC['DepMap_ID']
-        self.value = IC['IC50']
-
-    def __len__(self):
-        return len(self.value)
-
-    def __getitem__(self, index):
-        return (drug_name2idx_dict[self.drug_name[index]], cell_id2idx_dict[self.Cell_line_name[index]], self.value[index])
-     
-    
-def load_sim_data(IC, args):
-    train_set, val_test_set = train_test_split(IC, test_size=0.2, random_state=args.seed)
-    val_set, test_set = train_test_split(val_test_set, test_size=0.5, random_state=args.seed)
-    
-    train_data, val_data, test_data = Dataset_Sim(train_set), Dataset_Sim(val_set), Dataset_Sim(test_set)
-    
-    train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False)
-    test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False)
-    
-    return train_loader, val_loader, test_loader
-
-
-def load_sim_graph(edge_index, args):  
-    args.num_feature = 1 # Single-omics
-    # args.num_feature = 3 # Multi-omics
-    
-    drug_id2graph_dict = np.load('Data/Drug/drug_feature_graph.npy', allow_pickle=True).item()
-    cell_name2feature_dict = np.load('Data/Cell/cell_feature_std_2369disjoint.npy', allow_pickle=True).item()
-    
-    drug_name = pd.read_csv("Data/Drug/drug_smiles.csv").iloc[:, 0]
-    
-    cell_idx2feature_dict = {u: cell_name2feature_dict[v] for u, v in cell_idx2id_dict.items()}
-    drug_idx2graph_dict = {u: drug_id2graph_dict[v] for u, v in enumerate(drug_name)}
-    
-    drug_graph = [dg for _, dg in drug_idx2graph_dict.items()]
-    cell_graph = [cg for _, cg in cell_idx2feature_dict.items()]
-    
-    for cg in cell_graph:
-        cg.edge_index = edge_index
-
-    model = DRPreter(args).to(args.device)
-    model.load_state_dict(torch.load(f'weights/weight_seed{args.seed}.pth', map_location=args.device)['model_state_dict'])
-
-    drug_nodes = model.DrugEncoder(Batch.from_data_list(drug_graph).to(args.device)).detach() # detach(): One of the ways to copy an existing tensor - create a tensor that does not allow gradient propagation from an existing tensor
-    cell_nodes = model.CellEncoder(Batch.from_data_list(cell_graph).to(args.device)).detach() # torch.no_grad() and detach() can be seen as almost the same.
- 
-    with open(f'./Data/Similarity/edge/drug_cell_edges_5_knn', 'rb') as f:
-        drug_edges, cell_edges = pickle.load(f)
-        
-    drug_edges = torch.tensor(drug_edges, dtype=torch.long).t()
-    cell_edges = torch.tensor(cell_edges, dtype=torch.long).t()
-
-    return drug_nodes, cell_nodes, drug_edges, cell_edges
-
-
 def boxplot():
     """
     Draw a boxplot sorted in descending order based on median of predicted IC50 values for each drug
     """
-    data = pd.read_csv(rpath + 'Data/sorted_IC50_82833_580_170.csv')
+    data = pd.read_csv('Data/sorted_IC50_82833_580_170.csv')
     ic50 = data[['Drug name', 'IC50']]
     grouped = ic50.groupby('Drug name') # Grouping data by drug name
     df = pd.DataFrame({col:vals['IC50'] for col,vals in grouped})
