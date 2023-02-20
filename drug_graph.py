@@ -2,10 +2,20 @@ from rdkit import Chem
 import numpy as np
 import pandas as pd
 import torch
-import torch_geometric
 from torch_geometric.data import Data
 from dgllife.utils import *
 import pickle
+import argparse
+from tqdm import tqdm
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--smiles', default='./Data/Drug/drug_smiles.csv', help='A csv file with names as first column and SMILES as second column')
+    parser.add_argument('--drug_dict', default='./Data/Drug/drug_feature_graph.pkl', help='The name of the file to store the dictionary where the key is the name and the value is a pytorch_geometric data object')
+    
+    return parser.parse_args()
 
 
 def atom_to_feature_vector(atom):
@@ -99,18 +109,19 @@ def smiles2graph(mol):
     return graph
 
 
-def save_drug_graph():
-    smiles = pd.read_csv('Data/Drug/drug_smiles.csv')
+def save_drug_graph(args):
+    smiles = pd.read_csv(args.smiles)
+    smiles_col_0, smiles_col_1 = smiles.columns
     drug_dict = {}
-    for i in range(len(smiles)):
-        drug_dict[smiles.iloc[i, 0]] = smiles2graph(smiles.iloc[i, 2])
-    with open('Data/Drug/drug_feature_graph.npy', 'wb') as file:
+    for i in tqdm(smiles.index):
+        drug_dict[smiles.loc[i, smiles_col_0]] = smiles2graph(smiles.loc[i, smiles_col_1])
+    with open(args.drug_dict, 'wb') as file:
         pickle.dump(drug_dict, file)
-    return drug_dict
 
 
 if __name__ == '__main__':
+    args = parse_args()
 #     graph = smiles2graph('O1C=C[C@H]([C@H]1O2)c3c2cc(OC)c4c3OC(=O)C5=C4CCC(=O)5')
 #     print(graph.x.shape)
 #     print(graph.edge_attr.shape)
-    save_drug_graph()
+    save_drug_graph(args)
