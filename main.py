@@ -193,7 +193,7 @@ def main():
         data = pd.read_excel(f'inference_seed{args.seed}.xlsx', sheet_name='test')
         name = data[['Drug name', 'DepMap_ID']]
         
-        with open(rpath + 'Data/Cell/cell_idx2gene_dict.npy', 'rb') as file:
+        with open(rpath + 'Data/Cell/cell_idx2gene_dict.pkl', 'rb') as file:
             gene_dict = pickle.load(file)
         
         total_gene_df = pd.Series(list(range(len(data))))
