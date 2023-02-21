@@ -15,7 +15,7 @@ from utils import *
 from Model.DRPreter import DRPreter
 
 def parse_args():
-    path = os.path.realpath(__file__)
+    path = '/'.join(os.path.realpath(__file__).split('/')[:-1])
     
     parser = argparse.ArgumentParser()
     
