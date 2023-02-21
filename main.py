@@ -25,7 +25,7 @@ def arg_parse():
     parser.add_argument('--dropout_ratio', type=float, default=0.1, help='Dropout ratio (default: 0.1)')
     parser.add_argument('--epochs', type=int, default=300, help='Maximum number of epochs (default: 300)')
     parser.add_argument('--patience', type=int, default=10, help='patience for early stopping (default: 10)')
-    parser.add_argument('--mode', type=str, default='train', help='train, test')
+    parser.add_argument('--mode', type=str, required=True, help='train, test')
     parser.add_argument('--path_result', default='./Result', help='A path to save results')
     
     parser.add_argument('--edge_index', default='./Data/Cell/edge_index.npy', help='An edge index file generated from cellline_graph.py')
