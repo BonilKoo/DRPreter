@@ -86,7 +86,7 @@ def main():
             
             
     if args.mode == 'train':
-        result_col = ('mse\trmse\tmae\tpcc\tscc')
+        result_col = ('epoch\tmse\trmse\tmae\tpcc\tscc')
         
         result_prefix = 'results'
         results_path = get_path(args, result_path, result_prefix=f'val_{result_prefix}')
@@ -133,7 +133,7 @@ def main():
         print(f'Train result:\t{train_MSE:.4f}\t{train_RMSE:.4f}\t{train_MAE:.4f}\t{train_PCC:.4f}\t{train_SCC:.4f}')
         print(f'Val result:\t{val_MSE:.4f}\t{val_RMSE:.4f}\t{val_MAE:.4f}\t{val_PCC:.4f}\t{val_SCC:.4f}')
         print(f'Test result:\t{test_MSE:.4f}\t{test_RMSE:.4f}\t{test_MAE:.4f}\t{test_PCC:.4f}\t{test_SCC:.4f}')
-        df.to_csv(get_path(args, result_path, result_prefix=f'test{result_prefix}_df', extension='csv'), sep='\t', index=0)
+        df.to_csv(get_path(args, result_path, result_prefix=f'test_{result_prefix}_df', extension='tsv'), sep='\t', index=0)
 
         
     elif args.mode == 'test':
