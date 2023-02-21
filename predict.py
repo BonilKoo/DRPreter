@@ -15,20 +15,22 @@ from utils import *
 from Model.DRPreter import DRPreter
 
 def parse_args():
+    path = os.path.realpath(__file__)
+    
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--input', default=f'./input.csv', help='Input csv file for prediction. First column: name | Second column: SMILES')
-    parser.add_argument('--output', default=f'./Result/output.csv', help='File name to save')
+    parser.add_argument('--input', default=f'{path}/input.csv', help='Input csv file for prediction. First column: name | Second column: SMILES')
+    parser.add_argument('--output', default=f'{path}/Result/output.csv', help='File name to save')
     parser.add_argument('--top_k', default=10, help='The number of genes with high importance scores to store in the file')
     
     parser.add_argument('--device', type=int, default=0, help='device')
     
-    parser.add_argument('--cell_info', default=f'./Data/Cell/cell_line_info.csv')
-    parser.add_argument('--cell_dict', default=f'./Data/Cell/cell_feature_std.pkl', help='Cell graph')
-    parser.add_argument('--edge_index', default=f'./Data/Cell/edge_index.npy', help='STRING edges')
-    parser.add_argument('--model', default=f'./weights/weight_seed42.pth', help='Trained DRPreter model')
-    parser.add_argument('--gene_dict', default=f'./Data/Cell/cell_idx2gene_dict.pkl', help='A dictionary to map indices to gene names')
-    parser.add_argument('--pathway_dict', default=f'./Data/Cell/34pathway_score990.pkl', help='A dictionary of pathways and genes belonging to them')
+    parser.add_argument('--cell_info', default=f'{path}/Data/Cell/cell_line_info.csv')
+    parser.add_argument('--cell_dict', default=f'{path}/Data/Cell/cell_feature_std.pkl', help='Cell graph')
+    parser.add_argument('--edge_index', default=f'{path}/Data/Cell/edge_index.npy', help='STRING edges')
+    parser.add_argument('--model', default=f'{path}/weights/weight_seed42.pth', help='Trained DRPreter model')
+    parser.add_argument('--gene_dict', default=f'{path}/Data/Cell/cell_idx2gene_dict.pkl', help='A dictionary to map indices to gene names')
+    parser.add_argument('--pathway_dict', default=f'{path}/Data/Cell/34pathway_score990.pkl', help='A dictionary of pathways and genes belonging to them')
     
     args, unknown = parser.parse_known_args()
     return args
