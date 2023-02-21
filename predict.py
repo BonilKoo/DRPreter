@@ -18,8 +18,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--input', required=True, help='Input csv file for prediction. First column: name | Second column: SMILES')
-    parser.add_argument('--path_result', required=True, help='Path to save results')
-    parser.add_argument('--result_file', required=True, help='File name to save')
+    parser.add_argument('--output', required=True, help='File name to save')
     parser.add_argument('--top_k', default=10, help='The number of genes with high importance scores to store in the file')
     
     parser.add_argument('--device', type=int, default=0, help='device')
@@ -58,7 +57,6 @@ def predict(model, drug_dict, cell_dict, edge_index, args, data):
             IC50_pred.append(y_pred)
         IC50_pred = torch.cat(IC50_pred, dim=0)
     data['predicted ln(IC50)'] = IC50_pred.detach().cpu().numpy()
-    # data.to_csv(f'{args.path_result}/predicted.csv', index=False)
     torch.cuda.empty_cache()
     
     return data
@@ -76,7 +74,6 @@ def gene_importance_score(data, model, drug_dict, cell_dict, edge_index, args):
         total_gene_df.loc[index] = ', '.join(list(gene_df.drop_duplicates(keep='first')[0])[:args.top_k])
     
     data[f'Top{args.top_k} genes'] = total_gene_df
-    # data.to_csv(f'{args.path_result}/predicted.csv', index=False)
     
     return data
 
@@ -99,8 +96,9 @@ def pathway_attention_score(data, model, drug_dict, cell_dict, edge_index, args)
             total_pathway_df.loc[index] = ', '.join(average_attn_score.index.to_list()[:args.top_k])
     
     data[f'Top{args.top_k} pathways'] = total_pathway_df
-    os.makedirs(args.path_result, exist_ok=True)
-    data.to_csv(f'{args.path_result}/predicted.csv', index=False)
+    if '/' in args.output:
+        os.makedirs('/'.join(args.output.split('/')[:-1]), exist_ok=True)
+    data.to_csv(args.output, index=False)
     
     return data
 
