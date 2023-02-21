@@ -17,8 +17,8 @@ from Model.DRPreter import DRPreter
 def parse_args():
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--input', required=True, help='Input csv file for prediction. First column: name | Second column: SMILES')
-    parser.add_argument('--output', required=True, help='File name to save')
+    parser.add_argument('--input', default=f'./input.csv', help='Input csv file for prediction. First column: name | Second column: SMILES')
+    parser.add_argument('--output', default=f'./Result/output.csv', help='File name to save')
     parser.add_argument('--top_k', default=10, help='The number of genes with high importance scores to store in the file')
     
     parser.add_argument('--device', type=int, default=0, help='device')
@@ -102,8 +102,7 @@ def pathway_attention_score(data, model, drug_dict, cell_dict, edge_index, args)
     
     return data
 
-def main():
-    args = parse_args()
+def main(args):
     
     args.device = torch.device(f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu')
     
@@ -154,4 +153,5 @@ def main():
     data = pathway_attention_score(data, model, drug_dict, cell_dict, edge_index, args)
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    main(args)
