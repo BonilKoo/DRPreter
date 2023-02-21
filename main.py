@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 from utils import *
 from Model.DRPreter import DRPreter
-from Model.Similarity import Similarity
 from torch_scatter import scatter_add
 
 
