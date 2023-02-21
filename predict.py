@@ -30,7 +30,8 @@ def parse_args():
     parser.add_argument('--gene_dict', default=f'./Data/Cell/cell_idx2gene_dict.pkl', help='A dictionary to map indices to gene names')
     parser.add_argument('--pathway_dict', default=f'./Data/Cell/34pathway_score990.pkl', help='A dictionary of pathways and genes belonging to them')
     
-    return parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    return args
 
 def drug_to_graph(input_file):
     SMILES = pd.read_csv(input_file)
