@@ -184,7 +184,7 @@ def main():
         
         # ----- (2) Calculate scores from total test set in 'inference.csv' -----
         data = pd.read_excel(f'{result_path}/inference_seed{args.seed}.xlsx', sheet_name='test')
-        name = data[['Drug name', 'DepMap_ID']]
+        name = data[['DrugName', 'DepMap_ID']]
         
         with open('Data/Cell/cell_idx2gene_dict.pkl', 'rb') as file:
             gene_dict = pickle.load(file)

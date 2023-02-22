@@ -59,7 +59,7 @@ def predict(model, drug_dict, cell_dict, edge_index, args, data):
             y_pred = model(drug, cell)
             IC50_pred.append(y_pred)
         IC50_pred = torch.cat(IC50_pred, dim=0)
-    data['predicted ln(IC50)'] = IC50_pred.detach().cpu().numpy()
+    data['lnIC50'] = IC50_pred.detach().cpu().numpy()
     torch.cuda.empty_cache()
     
     return data
@@ -74,9 +74,9 @@ def gene_importance_score(data, model, drug_dict, cell_dict, edge_index, args):
         _, indices = gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
         idx2gene = [gene_dict[idx] for idx in indices]
         gene_df = pd.DataFrame(idx2gene)
-        total_gene_df.loc[index] = ', '.join(list(gene_df.drop_duplicates(keep='first')[0])[:args.top_k])
+        total_gene_df.loc[index] = '|'.join(list(gene_df.drop_duplicates(keep='first')[0])[:args.top_k])
     
-    data[f'Top{args.top_k} genes'] = total_gene_df
+    data[f'GeneSymbolList'] = total_gene_df
     
     return data
 
@@ -96,9 +96,9 @@ def pathway_attention_score(data, model, drug_dict, cell_dict, edge_index, args)
             total_pathway_df.loc[index] = ''
         else:
             average_attn_score = average_attn_score[average_attn_score['score'] != 0]
-            total_pathway_df.loc[index] = ', '.join(average_attn_score.index.to_list()[:args.top_k])
+            total_pathway_df.loc[index] = '|'.join(average_attn_score.index.to_list()[:args.top_k])
     
-    data[f'Top{args.top_k} pathways'] = total_pathway_df
+    data[f'KEGGPathwayList'] = total_pathway_df
     if '/' in args.output:
         os.makedirs('/'.join(args.output.split('/')[:-1]), exist_ok=True)
     data.to_csv(args.output, index=False)
@@ -120,14 +120,12 @@ def main(args):
     args.trans = True
     
     data = pd.read_csv(args.input)
-    data_col_0, data_col_1 = data.columns
-    data.columns = ['Drug name', 'SMILES']
+    data.columns = ['DrugName', 'SMILES']
     cell_info = pd.read_csv(args.cell_info)
     with open(args.cell_dict, 'rb') as file:
         cell_dict = pickle.load(file) # pyg data format of cell graph
     edge_index = np.load(args.edge_index)
     data = data.merge(cell_info, how='cross')
-    data['IC50'] = np.nan
     
     drug_dict = drug_to_graph(args.input)    
     
@@ -145,7 +143,6 @@ def main(args):
     args.cum_num_nodes = torch.cat([gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0)
     
     _, _, test_loader = load_data(data, drug_dict, cell_dict, torch.tensor(edge_index, dtype=torch.long), args, val_ratio=0, test_ratio=1)
-    data.columns = [data_col_0, data_col_1] + data.columns[2:].to_list()
     
     model = DRPreter(args).to(args.device)
     

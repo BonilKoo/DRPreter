@@ -1,4 +1,4 @@
-DepMap_ID,Cell line name,Cosmic sample Id,TCGA classification,Tissue,Tissue sub-type
+DepMap_ID,Cell_line_name,COSMIC_ID,TCGA_classification,Tissue,Tissue_subtype
 ACH-000001,OVCAR-3,905933,OV,urogenital_system,ovary
 ACH-000002,HL-60,905938,LAML,blood,acute_myeloid_leukaemia
 ACH-000006,MONO-MAC-6,908148,LAML,blood,acute_myeloid_leukaemia

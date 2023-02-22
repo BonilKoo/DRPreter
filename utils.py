@@ -195,7 +195,7 @@ def inference(model, drug_dict, cell_dict, edge_index, save_name, args, IC):
     val_set, test_set = train_test_split(val_test_set, test_size=0.5, random_state=args.seed)
         
     cell_table = IC[["DepMap_ID", "stripped_cell_line_name"]].drop_duplicates(keep='first')
-    drug_table = IC["Drug name"].drop_duplicates(keep='first').to_frame() # to_frame(): Convert series to dataframe
+    drug_table = IC["DrugName"].drop_duplicates(keep='first').to_frame() # to_frame(): Convert series to dataframe
     cell_table['value'] = 1 # Temporary variable for obtaining every combination of cell and drug according to the value
     drug_table['value'] = 1
     drug_cell_table = drug_table.merge(cell_table, how='left', on='value') # 98,600 combination
@@ -204,7 +204,7 @@ def inference(model, drug_dict, cell_dict, edge_index, save_name, args, IC):
     All drug-cellline combinations are stacked on top, and only pairs with IC50 values ​​are stacked on the bottom.
     In drop_duplicate, if you delete duplicates from the top and bottom (= those with IC50) with keep=False, only unknown pairs remain
     '''
-    unknown_set = pd.concat([drug_cell_table, IC[["Drug name", "DepMap_ID", "stripped_cell_line_name"]]], axis=0)
+    unknown_set = pd.concat([drug_cell_table, IC[["DrugName", "DepMap_ID", "stripped_cell_line_name"]]], axis=0)
     unknown_set.drop_duplicates(keep=False, inplace=True) # Pairs with no IC50 values
     dataset = {'train':train_set, 'val':val_set, 'test':test_set, 'unknown':unknown_set}
     writer = pd.ExcelWriter(save_name)
@@ -212,7 +212,7 @@ def inference(model, drug_dict, cell_dict, edge_index, save_name, args, IC):
         data.reset_index(drop=True, inplace=True)
         IC50_pred = []
         with torch.no_grad():
-            drug_name, cell_ID, cell_line_name = data['Drug name'], data["DepMap_ID"], data["stripped_cell_line_name"]
+            drug_name, cell_ID, cell_line_name = data['DrugName'], data["DepMap_ID"], data["stripped_cell_line_name"]
             for cell in cell_ID:
                 cell_dict[cell].edge_index = torch.tensor(edge_index, dtype=torch.long)
             drug_list = [drug_dict[name] for name in drug_name]
@@ -242,7 +242,7 @@ class MyDataset(Dataset):
         super(MyDataset, self).__init__()
         self.drug, self.cell = drug_dict, cell_dict
         IC.reset_index(drop=True, inplace=True) # Discard old indexes after train_test_split and rearrange with the new indexes
-        self.drug_name = IC['Drug name']
+        self.drug_name = IC['DrugName']
         self.Cell_line_name = IC['DepMap_ID']
         self.value = IC['IC50']
         # self.edge_index = torch.tensor(edge_index, dtype=torch.long)
@@ -413,8 +413,8 @@ def boxplot():
     Draw a boxplot sorted in descending order based on median of predicted IC50 values for each drug
     """
     data = pd.read_csv('Data/sorted_IC50_82833_580_170.csv')
-    ic50 = data[['Drug name', 'IC50']]
-    grouped = ic50.groupby('Drug name') # Grouping data by drug name
+    ic50 = data[['DrugName', 'IC50']]
+    grouped = ic50.groupby('DrugName') # Grouping data by drug name
     df = pd.DataFrame({col:vals['IC50'] for col,vals in grouped})
     meds = df.median()
     meds.sort_values(ascending=False, inplace=True)
