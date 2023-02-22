@@ -126,6 +126,7 @@ def main(args):
         cell_dict = pickle.load(file) # pyg data format of cell graph
     edge_index = np.load(args.edge_index)
     data = data.merge(cell_info, how='cross')
+    data['lnIC50'] = np.nan
     
     drug_dict = drug_to_graph(args.input)    
     
