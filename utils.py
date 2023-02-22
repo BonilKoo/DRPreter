@@ -227,10 +227,10 @@ def inference(model, drug_dict, cell_dict, edge_index, save_name, args, IC):
             IC50_pred = torch.cat(IC50_pred, dim=0)
         table = pd.concat([drug_name, cell_ID, cell_line_name], axis=1)
         if dataset_name != 'unknown':
-            table["IC50"] = data["IC50"]
-        table["IC50_Pred"] = IC50_pred.detach().cpu().numpy()
+            table["lnIC50"] = data["lnIC50"]
+        table["lnIC50_Pred"] = IC50_pred.detach().cpu().numpy()
         if dataset_name != 'unknown':
-            table["Abs_error"] = np.abs(IC50_pred.detach().cpu().numpy()-np.array(table["IC50"]).reshape(-1,1))
+            table["Abs_error"] = np.abs(IC50_pred.detach().cpu().numpy()-np.array(table["lnIC50"]).reshape(-1,1))
         table.to_excel(writer, sheet_name=dataset_name, index=False)
         torch.cuda.empty_cache()
     writer.close()
@@ -244,7 +244,7 @@ class MyDataset(Dataset):
         IC.reset_index(drop=True, inplace=True) # Discard old indexes after train_test_split and rearrange with the new indexes
         self.drug_name = IC['DrugName']
         self.Cell_line_name = IC['DepMap_ID']
-        self.value = IC['IC50']
+        self.value = IC['lnIC50']
         # self.edge_index = torch.tensor(edge_index, dtype=torch.long)
         self.edge_index = edge_index
 
@@ -413,9 +413,9 @@ def boxplot():
     Draw a boxplot sorted in descending order based on median of predicted IC50 values for each drug
     """
     data = pd.read_csv('Data/sorted_IC50_82833_580_170.csv')
-    ic50 = data[['DrugName', 'IC50']]
+    ic50 = data[['DrugName', 'lnIC50']]
     grouped = ic50.groupby('DrugName') # Grouping data by drug name
-    df = pd.DataFrame({col:vals['IC50'] for col,vals in grouped})
+    df = pd.DataFrame({col:vals['lnIC50'] for col,vals in grouped})
     meds = df.median()
     meds.sort_values(ascending=False, inplace=True)
     df = df[meds.index]
