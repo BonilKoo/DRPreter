@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument('--cell_info', default=f'{path}/Data/Cell/cell_line_info.csv')
     parser.add_argument('--cell_dict', default=f'{path}/Data/Cell/cell_feature_std.pkl', help='Cell graph')
     parser.add_argument('--edge_index', default=f'{path}/Data/Cell/edge_index.npy', help='STRING edges')
-    parser.add_argument('--model', default=f'{path}/weights/weight_seed42.pth', help='Trained DRPreter model')
+    parser.add_argument('--model', default=f'{path}/weights/weight_seed245.pth', help='Trained DRPreter model')
     parser.add_argument('--gene_dict', default=f'{path}/Data/Cell/cell_idx2gene_dict.pkl', help='A dictionary to map indices to gene names')
     parser.add_argument('--pathway_dict', default=f'{path}/Data/Cell/34pathway_score990.pkl', help='A dictionary of pathways and genes belonging to them')
     
