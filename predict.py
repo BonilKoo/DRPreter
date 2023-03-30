@@ -19,7 +19,7 @@ def parse_args():
     
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--input', default=f'{path}/input.csv', help='Input csv file for prediction. First column: name | Second column: SMILES')
+    parser.add_argument('--input', default=f'{path}/input.csv', help='Input csv file for prediction. First column: name | Second column: canonical_SMILES')
     parser.add_argument('--output', default=f'{path}/Result/output.csv', help='File name to save')
     parser.add_argument('--top_k', default=10, help='The number of genes with high importance scores to store in the file')
     
@@ -35,11 +35,10 @@ def parse_args():
     args, unknown = parser.parse_known_args()
     return args
 
-def drug_to_graph(input_file):
-    SMILES = pd.read_csv(input_file)
+def drug_to_graph(input_data):
     drug_dict = {}
-    for idx in range(len(SMILES)):
-        drug_dict[SMILES.loc[idx, SMILES.columns[0]]] = smiles2graph(SMILES.loc[idx, SMILES.columns[1]])
+    for idx in range(len(input_data)):
+        drug_dict[input_data.loc[idx, input_data.columns[0]]] = smiles2graph(input_data.loc[idx, input_data.columns[1]])
     return drug_dict
 
 def predict(model, drug_dict, cell_dict, edge_index, args, data):
@@ -120,7 +119,7 @@ def main(args):
     args.trans = True
     
     data = pd.read_csv(args.input)
-    data.columns = ['DrugName', 'SMILES']
+    data = data['DrugName', 'Canonical_SMILES']
     cell_info = pd.read_csv(args.cell_info)
     with open(args.cell_dict, 'rb') as file:
         cell_dict = pickle.load(file) # pyg data format of cell graph
@@ -128,7 +127,7 @@ def main(args):
     data = data.merge(cell_info, how='cross')
     data['lnIC50'] = np.nan
     
-    drug_dict = drug_to_graph(args.input)    
+    drug_dict = drug_to_graph(data)    
     
     for key in cell_dict.keys():
         example_cell = cell_dict[key]
