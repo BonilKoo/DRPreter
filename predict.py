@@ -119,7 +119,7 @@ def main(args):
     args.trans = True
     
     data = pd.read_csv(args.input)
-    data = data['DrugName', 'Canonical_SMILES']
+    data = data[['DrugName', 'Canonical_SMILES']]
     cell_info = pd.read_csv(args.cell_info)
     with open(args.cell_dict, 'rb') as file:
         cell_dict = pickle.load(file) # pyg data format of cell graph
