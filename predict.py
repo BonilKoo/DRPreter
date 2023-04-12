@@ -59,6 +59,7 @@ def predict(model, drug_dict, cell_dict, edge_index, args, data):
             IC50_pred.append(y_pred)
         IC50_pred = torch.cat(IC50_pred, dim=0)
     data['lnIC50'] = IC50_pred.detach().cpu().numpy()
+    data['IC50'] = np.exp(data['lnIC50'])
     torch.cuda.empty_cache()
     
     return data
