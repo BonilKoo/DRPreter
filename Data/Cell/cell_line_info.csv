@@ -554,7 +554,7 @@ ACH-001525,HT-3,907068,CESC,urogenital_system,cervix
 ACH-001526,HuO9,907072,UNCLASSIFIED,bone,osteosarcoma
 ACH-001528,IHH-4,1240154,THCA,thyroid,thyroid
 ACH-001549,LU-135,713899,SCLC,lung,lung_small_cell_carcinoma
-ACH-001578,NCCIT,908441,,urogenital_system,testis
+ACH-001578,NCCIT,908441,UNCLASSIFIED,urogenital_system,testis
 ACH-001603,NH-12,908447,NB,nervous_system,neuroblastoma
 ACH-001626,OSC-20,1240196,HNSC,aero_digestive_tract,head_and_neck
 ACH-001630,PEO1,1480372,OV,urogenital_system,ovary
