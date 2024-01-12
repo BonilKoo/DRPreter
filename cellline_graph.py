@@ -70,6 +70,12 @@ def save_cell_graph(args):
 
 
 def get_STRING_edges(args, gene_list):
+
+    new_gene_list = []
+    for genes in gene_list.values:
+        new_gene_list.extend(genes)
+    gene_list = new_gene_list
+    
     save_path = os.path.join(args.path_data, f'edge_index.npy')
     if not os.path.exists(save_path):
         # gene_list
