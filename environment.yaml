@@ -1,10 +1,12 @@
 name: DRPreter
 channels:
-  - conda-forge
+  - pytorch
+  - pyg
   - defaults
 dependencies:
-  - pip=23.0=pyhd8ed1ab_0
-  - pytorch_geometric=2.2.0=pyhd8ed1ab_0
+  - pyg=2.2.0
+  - python=3.10
+  - pytorch=1.12.1=py3.10_cuda11.3_cudnn8.3.2_0
   - pip:
     - dgl==1.0.0
     - dgllife==0.3.1
